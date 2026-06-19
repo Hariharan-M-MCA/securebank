@@ -27,3 +27,4 @@ public class User {
     private LocalDateTime createdAt;
     private Boolean isActive;
 }
+//user data was stored in the database-"Success"
