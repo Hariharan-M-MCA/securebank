@@ -5,6 +5,7 @@ import com.securebank.dto.response.TransactionResponse;
 import com.securebank.entity.Account;
 import com.securebank.entity.Transaction;
 import com.securebank.entity.Transaction.TransactionType;
+import com.securebank.event.TransactionEvent;
 import com.securebank.repository.AccountRepository;
 import com.securebank.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final AccountRepository accountRepository;
+    private final KafkaProducerService kafkaProducerService;
 
     @Transactional
     public TransactionResponse processTransaction(TransactionRequest request, String email) {
@@ -69,9 +71,20 @@ public class TransactionService {
         }
 
         transactionRepository.save(transaction);
+
+        TransactionEvent event = new TransactionEvent(
+                transaction.getId(),
+                request.getAccountNumber(),
+                request.getTransactionType().name(),
+                request.getAmount(),
+                email
+        );
+        kafkaProducerService.publishTransactionEvent(event);
+
         return mapToResponse(transaction);
     }
-@Transactional
+
+    @Transactional
     public List<TransactionResponse> getTransactionHistory(String accountNumber, String email) {
         Account account = accountRepository.findByAccountNumber(accountNumber)
                 .orElseThrow(() -> new RuntimeException("Account not found"));
