@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.securebank.exception.AccountNotFoundException;
+import com.securebank.exception.InsufficientBalanceException;
+import com.securebank.exception.UnauthorizedException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,10 +30,10 @@ public class TransactionService {
     @Transactional
     public TransactionResponse processTransaction(TransactionRequest request, String email) {
         Account account = accountRepository.findByAccountNumber(request.getAccountNumber())
-                .orElseThrow(() -> new RuntimeException("Account not found"));
+                .orElseThrow(() -> new AccountNotFoundException("Account not found"));
 
         if (!account.getUser().getEmail().equals(email)) {
-            throw new RuntimeException("Unauthorized access to account");
+            throw new UnauthorizedException("Unauthorized access to account");
         }
 
         Transaction transaction = new Transaction();
@@ -46,7 +49,7 @@ public class TransactionService {
 
         } else if (request.getTransactionType() == TransactionType.WITHDRAW) {
             if (account.getBalance().compareTo(request.getAmount()) < 0) {
-                throw new RuntimeException("Insufficient balance");
+                throw new InsufficientBalanceException("Insufficient balance");
             }
             account.setBalance(account.getBalance().subtract(request.getAmount()));
             transaction.setFromAccount(account);
@@ -57,10 +60,10 @@ public class TransactionService {
                 throw new RuntimeException("Destination account number is required for transfer");
             }
             if (account.getBalance().compareTo(request.getAmount()) < 0) {
-                throw new RuntimeException("Insufficient balance");
+                throw new InsufficientBalanceException("Insufficient balance");
             }
             Account toAccount = accountRepository.findByAccountNumber(request.getToAccountNumber())
-                    .orElseThrow(() -> new RuntimeException("Destination account not found"));
+                    .orElseThrow(() -> new AccountNotFoundException("Destination account not found"));
 
             account.setBalance(account.getBalance().subtract(request.getAmount()));
             toAccount.setBalance(toAccount.getBalance().add(request.getAmount()));

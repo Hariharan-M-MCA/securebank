@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.securebank.exception.UserNotFoundException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,13 +30,13 @@ public class AdminService {
 
     public UserProfileResponse getUserById(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         return mapToUserResponse(user);
     }
 
     public UserProfileResponse toggleUserStatus(Long id) {
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
         user.setIsActive(!user.getIsActive());
         userRepository.save(user);
         return mapToUserResponse(user);

@@ -13,7 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
-
+import com.securebank.exception.UserNotFoundException;
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -29,7 +29,7 @@ public class AuthService {
         );
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(()-> new RuntimeException("User not found"));
+                .orElseThrow(()-> new UserNotFoundException("User not found"));
 
         String token = jwtUtil.generateToken(user.getEmail(),user.getRole());
         return new LoginResponse(token, user.getEmail(),user.getRole());
