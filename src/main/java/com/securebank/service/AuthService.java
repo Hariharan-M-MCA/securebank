@@ -14,6 +14,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import com.securebank.exception.UserNotFoundException;
+import lombok.extern.slf4j.Slf4j;
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -23,21 +25,35 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final AuthenticationManager authenticationManager;
 
-    public LoginResponse login(LoginRequest request){
+    public LoginResponse login(LoginRequest request) {
+
+        log.info("Login attempt for email: {}", request.getEmail());
+
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(
+                        request.getEmail(),
+                        request.getPassword()
+                )
         );
-
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(()-> new UserNotFoundException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        String token = jwtUtil.generateToken(user.getEmail(),user.getRole());
-        return new LoginResponse(token, user.getEmail(),user.getRole());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
+
+        log.info("User logged in successfully: {}", user.getEmail());
+
+        return new LoginResponse(token, user.getEmail(), user.getRole());
     }
 
 
     public AuthResponse register(RegisterRequest request) {
+
+        log.info("Registration request received for email: {}", request.getEmail());
+
         if (userRepository.existsByEmail(request.getEmail())) {
+
+            log.warn("Registration failed. Email already exists: {}", request.getEmail());
+
             return new AuthResponse("Email already exists", false);
         }
 
@@ -52,6 +68,9 @@ public class AuthService {
         user.setIsActive(true);
 
         userRepository.save(user);
+
+        log.info("New user registered successfully: {}", user.getEmail());
+
         return new AuthResponse("Registration successful", true);
     }
 }
