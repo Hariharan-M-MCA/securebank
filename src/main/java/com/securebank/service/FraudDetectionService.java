@@ -8,7 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 @Service
@@ -23,74 +27,71 @@ public class FraudDetectionService {
     private String fraudServiceUrl;
 
     @KafkaListener(topics = "transaction-events", groupId = "securebank-group")
+    @Retryable(
+            retryFor = ResourceAccessException.class,
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000)
+    )
     public void analyzeTransaction(TransactionEvent event) {
 
-        log.info(
-                "Received Kafka event | Transaction ID: {} | Account: {}",
+        log.info("====================================================");
+        log.info("Starting fraud analysis");
+        log.info("Transaction ID: {}", event.getTransactionId());
+        log.info("Account Number: {}", event.getAccountNumber());
+        log.info("====================================================");
+
+        FraudCheckRequest request = new FraudCheckRequest(
                 event.getTransactionId(),
-                event.getAccountNumber()
+                event.getAmount().doubleValue(),
+                event.getTransactionType(),
+                event.getAccountNumber(),
+                event.getEmail()
         );
 
-        try {
+        log.info("Sending request to FastAPI...");
 
-            FraudCheckRequest request = new FraudCheckRequest(
-                    event.getTransactionId(),
-                    event.getAmount().doubleValue(),
-                    event.getTransactionType(),
-                    event.getAccountNumber(),
-                    event.getEmail()
-            );
+        FraudCheckResponse response = restClient.post()
+                .uri(fraudServiceUrl + "/predict")
+                .header("Content-Type", "application/json")
+                .body(request)
+                .retrieve()
+                .body(FraudCheckResponse.class);
 
-            log.info(
-                    "Sending fraud detection request to FastAPI | Transaction ID: {}",
-                    event.getTransactionId()
-            );
+        log.info("Response received from FastAPI.");
 
-            FraudCheckResponse response = restClient.post()
-                    .uri(fraudServiceUrl + "/predict")
-                    .header("Content-Type", "application/json")
-                    .body(request)
-                    .retrieve()
-                    .body(FraudCheckResponse.class);
+        if (response != null && response.getIsFraud()) {
 
-            log.info(
-                    "Fraud detection response received | Transaction ID: {}",
-                    event.getTransactionId()
-            );
+            log.warn("====================================================");
+            log.warn("FRAUD DETECTED");
+            log.warn("Transaction ID : {}", response.getTransactionId());
+            log.warn("Fraud Score    : {}", response.getFraudScore());
+            log.warn("Reason         : {}", response.getReason());
+            log.warn("====================================================");
 
-            if (response != null && response.getIsFraud()) {
+        } else if (response != null) {
 
-                log.warn(
-                        "FRAUD DETECTED | Transaction ID: {} | Score: {} | Reason: {}",
-                        response.getTransactionId(),
-                        response.getFraudScore(),
-                        response.getReason()
-                );
+            log.info("====================================================");
+            log.info("Transaction Approved");
+            log.info("Transaction ID : {}", response.getTransactionId());
+            log.info("Fraud Score    : {}", response.getFraudScore());
+            log.info("====================================================");
 
-            } else if (response != null) {
+        } else {
 
-                log.info(
-                        "Transaction approved | Transaction ID: {} | Fraud Score: {}",
-                        response.getTransactionId(),
-                        response.getFraudScore()
-                );
-
-            } else {
-
-                log.warn(
-                        "Fraud service returned an empty response | Transaction ID: {}",
-                        event.getTransactionId()
-                );
-            }
-
-        } catch (Exception e) {
-
-            log.error(
-                    "Fraud detection failed | Transaction ID: {} | Error: {}",
-                    event.getTransactionId(),
-                    e.getMessage(),
-                    e
-            );
+            log.warn("FastAPI returned an empty response.");
         }
+    }
+
+    @Recover
+    public void recover(ResourceAccessException ex, TransactionEvent event) {
+
+        log.error("====================================================");
+        log.error("Fraud Detection Service is unavailable.");
+        log.error("Transaction ID : {}", event.getTransactionId());
+        log.error("Account Number : {}", event.getAccountNumber());
+        log.error("Retry attempts exhausted (3 attempts).");
+        log.error("Reason : {}", ex.getMessage());
+        log.error("Skipping fraud analysis.");
+        log.error("====================================================");
     }
 }
