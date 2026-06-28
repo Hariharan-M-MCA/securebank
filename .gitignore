@@ -42,6 +42,7 @@ build/
 # Environment files
 .env
 .env.*
+!.env.example
 
 # Local Spring Boot configuration
 application-local.properties
