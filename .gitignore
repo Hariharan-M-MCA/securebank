@@ -18,6 +18,7 @@ target/
 *.iws
 *.iml
 *.ipr
+*.sql
 
 ### NetBeans ###
 /nbproject/private/
@@ -37,3 +38,29 @@ build/
 *.jar
 *.log
 .DS_Store
+
+# Environment files
+.env
+.env.*
+
+# Local Spring Boot configuration
+application-local.properties
+
+# Logs
+logs/
+*.log
+
+# OS files
+Thumbs.db
+
+# Python
+fraud_detection/venv/
+fraud_detection/__pycache__/
+fraud_detection/.pytest_cache/
+fraud_detection/.mypy_cache/
+
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
